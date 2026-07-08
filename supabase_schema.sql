@@ -65,10 +65,11 @@ create index if not exists idx_market_companies_group on market_companies(group_
 create index if not exists idx_market_independent_items_section on market_independent_items(section_id);
 
 -- =========================================================================
--- RLS opcional (comentado a propósito). El resto del proyecto Incentiva AI
--- tiene RLS desactivado en sus 9 tablas existentes, así que estas tablas
--- quedan igual por defecto (RLS off = accesibles con la anon key sin más).
--- Si en algún momento se quiere restringir a solo-lectura pública, descomentar:
+-- RLS: ACTIVADO en producción (2026-07-08) con políticas de solo lectura.
+-- La anon key queda embebida en el HTML público — sin estas políticas esa
+-- key podría tener permisos de escritura heredados del schema, así que RLS
+-- + policy de solo-select es obligatorio, no opcional, para este proyecto.
+-- Statements ya ejecutados (se dejan documentados acá para referencia):
 --
 -- alter table market_groups enable row level security;
 -- alter table market_companies enable row level security;
