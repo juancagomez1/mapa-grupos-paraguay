@@ -129,9 +129,6 @@
   .rs-sector-count{font-family:'IBM Plex Mono';font-size:11px;color:var(--paper-dim);width:18px;text-align:right;flex-shrink:0;}
   .rs-sector-row.clickable{cursor:pointer;border-radius:8px;transition:background .15s ease;margin:0 -6px 9px;padding:0 6px;}
   .rs-sector-row.clickable:hover{background:rgba(240,237,228,0.04);}
-  .rs-alert{font-size:12px;line-height:1.5;background:rgba(196,135,74,0.08);border:1px solid rgba(196,135,74,0.25);border-radius:10px;padding:11px 13px;margin-bottom:10px;cursor:pointer;transition:background .15s ease,border-color .15s ease;}
-  .rs-alert:hover{background:rgba(196,135,74,0.14);border-color:rgba(196,135,74,0.45);}
-  .rs-alert strong{color:var(--copper);}
 
   #controls-zonal{flex:0 0 auto;padding:10px 12px;border-bottom:1px solid var(--line);display:flex;gap:8px;align-items:center;}
   #stage-zonal{position:relative;flex:1 1 auto;min-height:0;width:100%;}
@@ -525,30 +522,47 @@ chipRowComp.addEventListener('click', e=>{
 const svgComp = d3.select("#svg-comp");
 const stageCompEl = document.getElementById('stage-comp');
 
+// Grupo persistente para poder hacer zoom/pan sin perderlo en cada render
+// (renderCompetencia limpia su CONTENIDO en cada llamada, pero el grupo en
+// sí y su transform de zoom quedan intactos).
+const gCompZoom = svgComp.append("g");
+const zoomComp = d3.zoom().scaleExtent([0.5, 4]).on("zoom", (event)=>{
+  gCompZoom.attr("transform", event.transform);
+});
+svgComp.call(zoomComp).on("dblclick.zoom", null);
+
+// Leyenda fija (no se mueve con el pan/zoom) — se crea una sola vez y se
+// reposiciona en cada render en vez de recrearse.
+const legendComp = svgComp.append("g").attr("class","comp-legend-fixed");
+legendComp.append("circle").attr("r",5).attr("cx",5).attr("cy",0).attr("fill","#5B6B7C").attr("opacity",0.92);
+legendComp.append("text").attr("x",15).attr("y",4).attr("class","orbit-hint").style("font-size","10px").style("text-anchor","start").text("Parte de un grupo familiar");
+legendComp.append("circle").attr("r",5).attr("cx",5).attr("cy",18).attr("fill","#5B6B7C").attr("opacity",0.55).attr("stroke","#F0EDE4").attr("stroke-width",1).attr("stroke-dasharray","2 2");
+legendComp.append("text").attr("x",15).attr("y",22).attr("class","orbit-hint").style("font-size","10px").style("text-anchor","start").text("Independiente / multinacional");
+
 function renderCompetencia(){
   const width = stageCompEl.clientWidth, height = stageCompEl.clientHeight;
   if(width < 4 || height < 4) return;
 
   svgComp.attr("viewBox", [0,0,width,height]);
-  svgComp.selectAll("*").remove();
+  gCompZoom.selectAll("*").remove();
+  svgComp.call(zoomComp.transform, d3.zoomIdentity);
 
   const entries = competenciaIndex[activeCompRubro] || [];
   document.getElementById('counter').textContent =
     entries.length + (entries.length===1 ? " empresa mapeada en " : " empresas compiten en ") + activeCompRubro;
 
   const cx = width/2, cy = height/2;
-  const outerOrbit = Math.min(width,height)*0.36;
+  // Reservamos margen fijo para que las etiquetas (que se extienden más
+  // allá del nodo) no queden cortadas por el borde del SVG.
+  const labelMargin = 62;
+  const outerOrbit = Math.max(50, Math.min(width,height)/2 - labelMargin);
   const innerOrbit = outerOrbit*0.6;
-  const g = svgComp.append("g");
+  const g = gCompZoom;
 
   g.append("circle").attr("class","orbit-ring").attr("cx",cx).attr("cy",cy).attr("r",outerOrbit);
   g.append("circle").attr("class","orbit-ring").attr("cx",cx).attr("cy",cy).attr("r",innerOrbit);
 
-  const legend = svgComp.append("g").attr("transform",`translate(14,${height-38})`);
-  legend.append("circle").attr("r",5).attr("cx",5).attr("cy",0).attr("fill","#5B6B7C").attr("opacity",0.92);
-  legend.append("text").attr("x",15).attr("y",4).attr("class","orbit-hint").style("font-size","10px").style("text-anchor","start").text("Parte de un grupo familiar");
-  legend.append("circle").attr("r",5).attr("cx",5).attr("cy",18).attr("fill","#5B6B7C").attr("opacity",0.55).attr("stroke","#F0EDE4").attr("stroke-width",1).attr("stroke-dasharray","2 2");
-  legend.append("text").attr("x",15).attr("y",22).attr("class","orbit-hint").style("font-size","10px").style("text-anchor","start").text("Independiente / multinacional");
+  legendComp.attr("transform",`translate(14,${height-38})`);
 
   g.append("circle").attr("cx",cx).attr("cy",cy).attr("r",30).attr("fill","#122238").attr("stroke","#C4874A").attr("stroke-width",1.5);
   g.append("text").attr("class","orbit-center-label").attr("x",cx).attr("y",cy+4).style("font-size","11px")
@@ -622,17 +636,6 @@ function renderResumen(){
     <div class="rs-stat"><div class="rs-stat-value">${conM_A}</div><div class="rs-stat-label">Con M&A activo reciente</div></div>
     <div class="rs-stat"><div class="rs-stat-value">${conAlerta}</div><div class="rs-stat-label">Con alerta de due diligence</div></div>`;
   el.appendChild(grid);
-
-  // alertas RRHH destacadas (clic abre el panel del grupo)
-  const alertTitle = document.createElement('div');
-  alertTitle.className = 'mg-section-title'; alertTitle.textContent = 'Alertas para selección / due diligence';
-  el.appendChild(alertTitle);
-  data.filter(g=>(g.notaRRHH||"").includes("⚠️")).forEach(g=>{
-    const d = document.createElement('div'); d.className='rs-alert';
-    d.innerHTML = `<strong>${g.grupo}</strong> — ${g.notaRRHH}`;
-    d.addEventListener('click', ()=>openPanel(g));
-    el.appendChild(d);
-  });
 
   // distribución por rubro principal (conteo de empresas por rubro de nivel grupo)
   const secTitle = document.createElement('div');
@@ -717,11 +720,18 @@ chipRowZonal.addEventListener('click', e=>{
 const svgZonal = d3.select("#svg-zonal");
 const stageZonalEl = document.getElementById('stage-zonal');
 
+const gZonalZoom = svgZonal.append("g");
+const zoomZonal = d3.zoom().scaleExtent([0.5, 4]).on("zoom", (event)=>{
+  gZonalZoom.attr("transform", event.transform);
+});
+svgZonal.call(zoomZonal).on("dblclick.zoom", null);
+
 function renderZonal(){
   const width = stageZonalEl.clientWidth, height = stageZonalEl.clientHeight;
   if(width < 4 || height < 4) return;
   svgZonal.attr("viewBox",[0,0,width,height]);
-  svgZonal.selectAll("*").remove();
+  gZonalZoom.selectAll("*").remove();
+  svgZonal.call(zoomZonal.transform, d3.zoomIdentity);
 
   const filtered = activeZone==="todas" ? zonalLeaves : zonalLeaves.filter(l=>l.zone===activeZone);
   document.getElementById('counter').textContent = filtered.length + " empresas en el mapa zonal";
@@ -735,7 +745,7 @@ function renderZonal(){
 
   d3.treemap().size([width,height]).paddingOuter(3).paddingTop(activeZone==="todas"?22:4).paddingInner(2)(root);
 
-  const g = svgZonal.append("g");
+  const g = gZonalZoom;
 
   // fondo + etiqueta de cada zona (solo si se ven varias zonas)
   if(activeZone==="todas"){
