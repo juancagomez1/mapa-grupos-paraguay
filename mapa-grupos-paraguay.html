@@ -1,0 +1,995 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="description" content="Inteligencia de mercado sobre grupos empresariales de Paraguay: empresas, competencia, liderazgo y alertas de due diligence para hunting ejecutivo.">
+<title>Mapa de Grupos Empresariales — Paraguay</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#0E1A2B; --ink-2:#122238; --paper:#F0EDE4; --paper-dim:#B9C2CE;
+    --copper:#C4874A; --teal:#3E7C7C; --slate:#5B6B7C; --line: rgba(240,237,228,0.10);
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  html,body{margin:0;height:100%;background:var(--ink);color:var(--paper);font-family:'IBM Plex Sans',sans-serif;overflow:hidden;}
+
+  *{scrollbar-width:thin;scrollbar-color:var(--slate) transparent;}
+  *::-webkit-scrollbar{width:8px;height:8px;}
+  *::-webkit-scrollbar-track{background:transparent;}
+  *::-webkit-scrollbar-thumb{background:var(--slate);border-radius:99px;}
+  *::-webkit-scrollbar-thumb:hover{background:var(--paper-dim);}
+
+  :focus-visible{outline:2px solid var(--copper);outline-offset:2px;}
+
+  #grid{position:fixed;inset:0;z-index:0;
+    background-image:linear-gradient(var(--line) 1px, transparent 1px),linear-gradient(90deg, var(--line) 1px, transparent 1px);
+    background-size:36px 36px;}
+
+  #app{position:relative;z-index:1;display:flex;flex-direction:column;height:100%;height:100dvh;}
+
+  header{flex:0 0 auto;padding:14px 18px 8px;display:flex;align-items:baseline;justify-content:space-between;gap:10px;border-bottom:1px solid var(--line);}
+  .brand{display:flex;flex-direction:column;gap:2px;min-width:0;}
+  h1{font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:16px;margin:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .brand small{font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--copper);letter-spacing:1.5px;text-transform:uppercase;}
+  .meta{font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--paper-dim);text-align:right;flex-shrink:0;}
+
+  #tabs{flex:0 0 auto;display:flex;align-items:center;gap:0;border-bottom:1px solid var(--line);padding:0 10px;}
+  .tab{flex:0 0 auto;background:none;border:none;color:var(--paper-dim);font-family:'IBM Plex Sans';font-size:12.5px;font-weight:500;padding:11px 12px;cursor:pointer;border-bottom:2px solid transparent;transition:color .15s ease,border-color .15s ease;}
+  .tab:hover{color:var(--paper);}
+  .tab.active{color:var(--paper);border-bottom-color:var(--copper);font-weight:600;}
+  #exportBtn{margin-left:auto;background:none;border:1px solid var(--line);border-radius:99px;color:var(--paper-dim);font-family:'IBM Plex Mono';font-size:10.5px;padding:5px 11px;cursor:pointer;}
+  #exportBtn:hover{color:var(--paper);border-color:var(--copper);}
+
+  .view{display:none;flex-direction:column;flex:1 1 auto;min-height:0;}
+  .view.active{display:flex;animation:viewIn .18s ease;}
+  @keyframes viewIn{from{opacity:0;}to{opacity:1;}}
+
+  #controls,#controls-comp{flex:0 0 auto;padding:10px 12px;border-bottom:1px solid var(--line);display:flex;gap:8px;align-items:center;}
+  .chipRow{display:flex;gap:8px;overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch;padding-bottom:2px;flex:1 1 auto;min-width:0;}
+  .chipRow::-webkit-scrollbar{display:none;}
+  .chip{flex:0 0 auto;font-family:'IBM Plex Sans';font-size:12px;font-weight:500;padding:7px 13px;border-radius:99px;border:1px solid var(--line);background:transparent;color:var(--paper-dim);cursor:pointer;transition:all .15s ease;white-space:nowrap;}
+  .chip:hover{border-color:var(--paper-dim);color:var(--paper);}
+  .chip:active{transform:scale(0.97);}
+  .chip.active{background:var(--copper);border-color:var(--copper);color:var(--ink);font-weight:600;}
+  .chip.active:hover{border-color:var(--copper);color:var(--ink);}
+
+  #searchWrap{flex:0 0 auto;}
+  #search{background:transparent;border:1px solid var(--line);border-radius:99px;padding:7px 13px;color:var(--paper);font-family:'IBM Plex Sans';font-size:12px;width:104px;outline:none;}
+  #search::placeholder{color:var(--slate);}
+  #search:focus{border-color:var(--teal);width:132px;}
+
+  #stage,#stage-comp{position:relative;flex:1 1 auto;min-height:0;width:100%;}
+  svg{width:100%;height:100%;display:block;}
+
+  .bubble-label{font-family:'Space Grotesk';font-weight:600;fill:var(--ink);pointer-events:none;text-anchor:middle;}
+  .bubble-sub{font-family:'IBM Plex Mono';fill:var(--ink);opacity:0.55;pointer-events:none;text-anchor:middle;}
+  .bubble{cursor:pointer;transition:filter .15s ease;}
+  .bubble:hover{filter:brightness(1.12);}
+
+  .orbit-ring{fill:none;stroke:var(--line);stroke-dasharray:3 5;}
+  .orbit-center-label{font-family:'Space Grotesk';font-weight:700;fill:var(--paper);text-anchor:middle;}
+  .orbit-node{cursor:pointer;transition:filter .15s ease;}
+  .orbit-node:hover{filter:brightness(1.15);}
+  .orbit-label{font-family:'IBM Plex Sans';font-weight:600;fill:var(--paper);text-anchor:middle;pointer-events:none;}
+  .orbit-sub{font-family:'IBM Plex Mono';fill:var(--paper-dim);text-anchor:middle;pointer-events:none;}
+  .orbit-hint{font-family:'IBM Plex Mono';font-size:11px;fill:var(--slate);text-anchor:middle;}
+
+  /* --- Márgenes de mercado view --- */
+  #margenes-scroll{flex:1 1 auto;min-height:0;overflow-y:auto;padding:14px 16px 30px;}
+  .mg-section-title{font-family:'IBM Plex Mono';font-size:10.5px;letter-spacing:1.2px;text-transform:uppercase;color:var(--teal);margin:18px 0 10px;}
+  .mg-section-title:first-child{margin-top:2px;}
+  .mg-card{background:var(--ink-2);border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin-bottom:10px;}
+  .mg-top{display:flex;justify-content:space-between;align-items:baseline;gap:8px;margin-bottom:6px;}
+  .mg-rubro{font-family:'Space Grotesk';font-weight:600;font-size:14px;}
+  .mg-valor{font-family:'Space Grotesk';font-weight:700;font-size:18px;color:var(--copper);}
+  .mg-empresa{font-size:12.5px;color:var(--paper-dim);margin-bottom:8px;}
+  .mg-bar-track{height:6px;background:rgba(240,237,228,0.08);border-radius:99px;overflow:hidden;margin-bottom:8px;}
+  .mg-bar-fill{height:100%;background:var(--copper);border-radius:99px;}
+  .mg-dato{font-size:12.5px;line-height:1.45;margin-bottom:6px;}
+  .mg-fuente{font-family:'IBM Plex Mono';font-size:10px;color:var(--slate);}
+  .mg-caveat{font-size:11.5px;color:var(--paper-dim);line-height:1.5;background:rgba(196,135,74,0.08);border:1px solid rgba(196,135,74,0.25);border-radius:10px;padding:10px 12px;margin-bottom:4px;}
+
+  #panel{position:fixed;top:0;right:0;height:100%;height:100dvh;width:min(340px,88vw);background:var(--ink-2);border-left:1px solid var(--line);box-shadow:-16px 0 40px rgba(0,0,0,0.35);transform:translateX(100%);transition:transform .28s cubic-bezier(.4,0,.2,1);z-index:5;padding:22px 20px;overflow-y:auto;}
+  #panel.open{transform:translateX(0);}
+  #panel .eyebrow{font-family:'IBM Plex Mono';font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--teal);margin-bottom:6px;}
+  #panel h2{font-family:'Space Grotesk';font-size:20px;margin:0 24px 4px 0;}
+  #panel .rubro-tag{display:inline-block;font-size:11px;font-family:'IBM Plex Mono';padding:3px 9px;border-radius:99px;border:1px solid var(--line);color:var(--paper-dim);margin-bottom:16px;}
+  #panel .empresa{padding:11px 0;border-top:1px solid var(--line);}
+  #panel .empresa:first-of-type{border-top:none;margin-top:4px;}
+  #panel .empresa-nombre{font-weight:600;font-size:13.5px;margin-bottom:3px;line-height:1.3;}
+  #panel .empresa-rubro{font-size:11.5px;color:var(--paper-dim);font-family:'IBM Plex Mono';}
+  #closePanel{position:absolute;top:18px;right:18px;background:none;border:none;color:var(--paper-dim);font-size:20px;cursor:pointer;line-height:1;padding:4px;}
+  #closePanel:hover{color:var(--paper);}
+  #overlay{position:fixed;inset:0;background:rgba(0,0,0,0.4);opacity:0;pointer-events:none;transition:opacity .28s ease;z-index:4;}
+  #overlay.open{opacity:1;pointer-events:auto;}
+
+  .note{font-family:'IBM Plex Mono';font-size:9.5px;color:var(--slate);padding:6px 12px;flex:0 0 auto;}
+
+  /* --- Panel: bloque de datos RRHH --- */
+  .p-stats{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px;}
+  .p-stat{background:rgba(240,237,228,0.04);border:1px solid var(--line);border-radius:10px;padding:8px 10px;}
+  .p-stat-label{font-family:'IBM Plex Mono';font-size:9px;text-transform:uppercase;letter-spacing:1px;color:var(--slate);margin-bottom:3px;}
+  .p-stat-value{font-size:12px;font-weight:600;line-height:1.3;}
+  .p-lideres{font-size:12px;color:var(--paper-dim);line-height:1.5;margin-bottom:12px;}
+  .p-nota{font-size:12px;line-height:1.5;background:rgba(196,135,74,0.08);border:1px solid rgba(196,135,74,0.25);border-radius:10px;padding:10px 12px;margin-bottom:16px;}
+
+  /* --- Resumen (dashboard ejecutivo) --- */
+  #resumen-scroll{flex:1 1 auto;min-height:0;overflow-y:auto;padding:14px 16px 30px;}
+  .rs-stat-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:18px;}
+  .rs-stat{background:var(--ink-2);border:1px solid var(--line);border-radius:12px;padding:14px 14px;}
+  .rs-stat-value{font-family:'Space Grotesk';font-weight:700;font-size:26px;color:var(--copper);line-height:1;}
+  .rs-stat-label{font-family:'IBM Plex Mono';font-size:10px;color:var(--paper-dim);text-transform:uppercase;letter-spacing:0.8px;margin-top:6px;}
+  .rs-sector-row{display:flex;align-items:center;gap:10px;margin-bottom:9px;}
+  .rs-sector-name{font-size:12px;width:118px;flex-shrink:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .rs-sector-track{flex:1 1 auto;height:8px;background:rgba(240,237,228,0.06);border-radius:99px;overflow:hidden;}
+  .rs-sector-fill{height:100%;border-radius:99px;}
+  .rs-sector-count{font-family:'IBM Plex Mono';font-size:11px;color:var(--paper-dim);width:18px;text-align:right;flex-shrink:0;}
+  .rs-sector-row.clickable{cursor:pointer;border-radius:8px;transition:background .15s ease;margin:0 -6px 9px;padding:0 6px;}
+  .rs-sector-row.clickable:hover{background:rgba(240,237,228,0.04);}
+  .rs-alert{font-size:12px;line-height:1.5;background:rgba(196,135,74,0.08);border:1px solid rgba(196,135,74,0.25);border-radius:10px;padding:11px 13px;margin-bottom:10px;cursor:pointer;transition:background .15s ease,border-color .15s ease;}
+  .rs-alert:hover{background:rgba(196,135,74,0.14);border-color:rgba(196,135,74,0.45);}
+  .rs-alert strong{color:var(--copper);}
+
+  #controls-zonal{flex:0 0 auto;padding:10px 12px;border-bottom:1px solid var(--line);display:flex;gap:8px;align-items:center;}
+  #stage-zonal{position:relative;flex:1 1 auto;min-height:0;width:100%;}
+  .zn-cell{cursor:pointer;stroke:var(--ink);stroke-width:2px;transition:filter .15s ease;}
+  .zn-cell:hover{filter:brightness(1.15);}
+  .zn-label{font-family:'IBM Plex Sans';font-weight:600;fill:var(--ink);pointer-events:none;}
+  .zn-sub{font-family:'IBM Plex Mono';fill:var(--ink);opacity:0.6;pointer-events:none;}
+  .zn-zone-label{font-family:'Space Grotesk';font-weight:700;fill:var(--paper);pointer-events:none;text-transform:uppercase;letter-spacing:0.5px;}
+
+  #panorama-scroll{flex:1 1 auto;min-height:0;overflow-y:auto;padding:14px 16px 30px;}
+  .pn-card{background:var(--ink-2);border:1px solid var(--line);border-radius:10px;padding:11px 14px;margin-bottom:8px;}
+  .pn-nombre{font-family:'Space Grotesk';font-weight:600;font-size:13.5px;}
+  .pn-nota{font-size:12px;color:var(--paper-dim);line-height:1.4;margin-top:2px;}
+  .badge{display:inline-flex;align-items:center;gap:4px;font-family:'IBM Plex Mono';font-size:9.5px;font-weight:600;letter-spacing:0.3px;padding:2px 8px 2px 6px;border-radius:99px;margin-left:6px;vertical-align:middle;white-space:nowrap;}
+  .badge-gptw{background:rgba(143,175,94,0.16);color:#B7D68A;border:1px solid rgba(143,175,94,0.4);}
+  .badge-topofmind{background:rgba(196,135,74,0.16);color:#E3B27C;border:1px solid rgba(196,135,74,0.4);}
+
+  #personas-scroll{flex:1 1 auto;min-height:0;overflow-y:auto;padding:14px 16px 30px;}
+  .pc-card{background:var(--ink-2);border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin-bottom:10px;cursor:pointer;transition:border-color .15s ease,transform .15s ease;}
+  .pc-card:hover{border-color:var(--teal);transform:translateY(-1px);}
+  .pc-top{display:flex;align-items:center;gap:9px;margin-bottom:6px;}
+  .pc-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0;}
+  .pc-grupo{font-family:'Space Grotesk';font-weight:600;font-size:14px;}
+  .pc-lideres{font-size:12.5px;line-height:1.5;margin-bottom:4px;}
+  .pc-meta{font-family:'IBM Plex Mono';font-size:10.5px;color:var(--paper-dim);}
+</style>
+</head>
+<body>
+
+<div id="grid"></div>
+
+<div id="app">
+  <header>
+    <div class="brand">
+      <h1>Mapa de Grupos Empresariales</h1>
+      <small>Paraguay · Prototipo</small>
+    </div>
+    <div class="meta" id="counter"></div>
+  </header>
+
+  <nav id="tabs">
+    <button class="tab active" data-tab="resumen">Resumen</button>
+    <button class="tab" data-tab="grupos">Grupos</button>
+    <button class="tab" data-tab="margenes">Márgenes</button>
+    <button class="tab" data-tab="competencia">Competencia</button>
+    <button class="tab" data-tab="zonal">Zonal</button>
+    <button class="tab" data-tab="personas">Personas</button>
+    <button class="tab" data-tab="panorama">Panorama</button>
+    <button id="exportBtn" title="Exportar todo el dataset a JSON">⇩ JSON</button>
+  </nav>
+
+  <!-- TAB: mapeo zonal — todas las empresas (de grupos + independientes) agrupadas por zona/rubro -->
+  <div id="view-zonal" class="view">
+    <div id="controls-zonal">
+      <div class="chipRow" id="chipRowZonal"></div>
+    </div>
+    <div id="stage-zonal"><svg id="svg-zonal"></svg></div>
+  </div>
+
+  <!-- TAB 5: panorama competitivo — actores independientes fuera de los grupos familiares -->
+  <div id="view-panorama" class="view">
+    <div id="panorama-scroll"></div>
+  </div>
+
+  <!-- TAB 0: resumen ejecutivo -->
+  <div id="view-resumen" class="view active">
+    <div id="resumen-scroll"></div>
+  </div>
+
+  <!-- TAB 1: mapa de burbujas por grupo -->
+  <div id="view-grupos" class="view">
+    <div id="controls">
+      <div class="chipRow" id="chipRow"></div>
+      <div id="searchWrap"><input id="search" type="text" placeholder="Buscar…"></div>
+    </div>
+    <div id="stage"><svg id="svg-grupos"></svg></div>
+  </div>
+
+  <!-- TAB 2: márgenes de mercado -->
+  <div id="view-margenes" class="view">
+    <div id="margenes-scroll"></div>
+  </div>
+
+  <!-- TAB 3: competencia por rubro, vista orbital -->
+  <div id="view-competencia" class="view">
+    <div id="controls-comp">
+      <div class="chipRow" id="chipRowComp"></div>
+    </div>
+    <div id="stage-comp"><svg id="svg-comp"></svg></div>
+  </div>
+
+  <!-- TAB 4: personas clave / liderazgo -->
+  <div id="view-personas" class="view">
+    <div id="personas-scroll"></div>
+  </div>
+
+  <div class="note" id="footNote">Fuentes: prensa económica y sitios corporativos públicos · Grupo Cartes reorganizado en 2023-2025 (sanciones OFAC, herencia a Cartes Montaña) · tamaños ilustrativos</div>
+</div>
+
+<div id="overlay"></div>
+<div id="panel">
+  <button id="closePanel" aria-label="Cerrar">✕</button>
+  <div class="eyebrow" id="p-eyebrow">Grupo económico</div>
+  <h2 id="p-nombre"></h2>
+  <div class="rubro-tag" id="p-rubro"></div>
+  <div class="p-stats" id="p-stats">
+    <div class="p-stat"><div class="p-stat-label" id="p-empleados-label">Empleados</div><div class="p-stat-value" id="p-empleados"></div></div>
+    <div class="p-stat"><div class="p-stat-label" id="p-facturacion-label">Facturación</div><div class="p-stat-value" id="p-facturacion"></div></div>
+  </div>
+  <div class="p-lideres" id="p-lideres-wrap"><strong id="p-lideres-label">Liderazgo:</strong> <span id="p-liderazgo"></span></div>
+  <div class="p-nota" id="p-nota"></div>
+  <div id="p-empresas"></div>
+</div>
+
+<script type="module">
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+
+/* =========================================================================
+   Conexión a Supabase — fuente de datos del mapa (antes hardcodeado acá).
+   SUPABASE_ANON_KEY es la clave pública (segura para exponer en el cliente,
+   siempre que las tablas queden de solo lectura). Reemplazar el placeholder
+   antes de usar.
+   ========================================================================= */
+const SUPABASE_URL = "https://yigedbrpvvxjmmrpeifr.supabase.co";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlpZ2VkYnJwdnZ4am1tcnBlaWZyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA0MDQ1MzYsImV4cCI6MjA5NTk4MDUzNn0.vxT4B41TvesXN9he7IK1YrSBNHSmIAjAlK5fN_d8vW4";
+const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+/* =========================================================================
+   DATA — se carga desde Supabase en boot() (ver INIT al final del archivo).
+   "size" es un orden de magnitud ILUSTRATIVO para el layout de burbujas,
+   no una cifra oficial de facturación.
+   ========================================================================= */
+let data = [];
+
+const rubroColors = {
+  "Diversificado":"#C4874A","Combustibles/Energía":"#B08D2E","Salud/Medios":"#3E7C7C",
+  "Industria/Construcción":"#9C7EBF","Agroindustria/Construcción":"#7FA65A",
+  "Automotor":"#5B8FB0","Consumo Masivo":"#8FAF5E","Retail":"#B5615A"
+};
+function colorFor(rubro){ return rubroColors[rubro] || "#5B6B7C"; }
+
+/* color estable por grupo (para la vista de Competencia) — se construye en boot() */
+const grupoColorList = ["#C4874A","#C0524F","#6FA05A","#C9A227","#3E9797","#9C7EBF","#5B8FB0","#A9714A","#6B9E82","#7C8FA6","#C9986B","#8A6FB5","#4E8B8B","#B5824A"];
+let grupoColor;
+
+/* =========================================================================
+   MÁRGENES DE MERCADO — solo hechos con fuente verificable en prensa.
+   No se inventan porcentajes: donde no hay cifra pública, se muestra como
+   dato de escala operativa en vez de forzar un número.
+   ========================================================================= */
+let marketShare = [];
+let marketScale = [];
+
+/* =========================================================================
+   TABS
+   ========================================================================= */
+let activeTab = "resumen";
+document.querySelectorAll('.tab').forEach(t=>{
+  t.addEventListener('click', ()=>{
+    document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
+    t.classList.add('active');
+    document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
+    activeTab = t.dataset.tab;
+    document.getElementById('view-'+activeTab).classList.add('active');
+    if(activeTab==='resumen') renderResumen();
+    if(activeTab==='grupos') renderGrupos();
+    if(activeTab==='margenes') renderMargenes();
+    if(activeTab==='competencia') renderCompetencia();
+    if(activeTab==='zonal') renderZonal();
+    if(activeTab==='personas') renderPersonas();
+    if(activeTab==='panorama') renderPanorama();
+  });
+});
+
+/* =========================================================================
+   TAB 1 — Mapa de burbujas por grupo
+   ========================================================================= */
+const chipRow = document.getElementById('chipRow');
+let activeRubro = "todos", searchTerm = "";
+chipRow.addEventListener('click', e=>{
+  if(!e.target.classList.contains('chip')) return;
+  chipRow.querySelectorAll('.chip').forEach(c=>c.classList.remove('active'));
+  e.target.classList.add('active');
+  activeRubro = e.target.dataset.rubro;
+  renderGrupos();
+});
+document.getElementById('search').addEventListener('input', e=>{
+  searchTerm = e.target.value.toLowerCase();
+  renderGrupos();
+});
+
+const svgGrupos = d3.select("#svg-grupos");
+const stageEl = document.getElementById('stage');
+let simulation;
+
+function renderGrupos(){
+  const width = stageEl.clientWidth, height = stageEl.clientHeight;
+  if(width < 4 || height < 4) return;
+
+  svgGrupos.attr("viewBox", [0,0,width,height]);
+  svgGrupos.selectAll("*").remove();
+
+  let filtered = data.filter(d=> activeRubro==="todos" || d.rubro===activeRubro);
+  if(searchTerm){
+    filtered = filtered.filter(d=> d.grupo.toLowerCase().includes(searchTerm) ||
+      d.empresas.some(e=>e.nombre.toLowerCase().includes(searchTerm)));
+  }
+
+  document.getElementById('counter').textContent =
+    filtered.length + " grupo" + (filtered.length!==1?"s":"") + " · " +
+    filtered.reduce((a,d)=>a+d.empresas.length,0) + " empresas";
+
+  if(filtered.length===0){
+    if(simulation) simulation.stop();
+    svgGrupos.append("text").attr("class","orbit-hint")
+      .attr("x", width/2).attr("y", height/2).attr("text-anchor","middle")
+      .text("Sin resultados para \"" + searchTerm + "\" en este rubro");
+    return;
+  }
+
+  const rScale = d3.scaleSqrt().domain([0, d3.max(data,d=>d.size)]).range([10, Math.min(width,height)*0.17]);
+  const nodes = filtered.map(d=>({...d, r: rScale(d.size)}));
+  const g = svgGrupos.append("g");
+
+  const node = g.selectAll("g.node").data(nodes).join("g")
+    .attr("class","node").style("cursor","pointer")
+    .on("click",(event,d)=>openPanel(d));
+
+  node.append("circle").attr("class","bubble").attr("r", d=>d.r)
+    .attr("fill", d=>colorFor(d.rubro)).attr("opacity", 0.92);
+
+  node.append("text").attr("class","bubble-label")
+    .attr("dy", d=> d.r > 30 ? -2 : 3)
+    .style("font-size", d=> Math.max(9, Math.min(15, d.r*0.23))+"px")
+    .text(d=> d.r > 20 ? d.grupo : "");
+
+  node.filter(d=>d.r>30).append("text").attr("class","bubble-sub").attr("dy", 13)
+    .style("font-size", d=> Math.max(8, d.r*0.12)+"px")
+    .text(d=> d.empresas.length + " empresas");
+
+  if(simulation) simulation.stop();
+  simulation = d3.forceSimulation(nodes)
+    .force("charge", d3.forceManyBody().strength(6))
+    .force("center", d3.forceCenter(width/2, height/2))
+    .force("collide", d3.forceCollide().radius(d=>d.r+4).iterations(2))
+    .on("tick", ()=> node.attr("transform", d=>`translate(${d.x},${d.y})`));
+}
+
+/* =========================================================================
+   TAB 2 — Márgenes de mercado
+   ========================================================================= */
+function renderMargenes(){
+  document.getElementById('counter').textContent = (marketShare.length + marketScale.length) + " datos de mercado";
+  const el = document.getElementById('margenes-scroll');
+  el.innerHTML = "";
+
+  const caveat = document.createElement('div');
+  caveat.className = 'mg-caveat';
+  caveat.textContent = "Esta vista solo incluye datos con fuente pública verificable. La mayoría de los grupos no publica participación de mercado por rubro — a medida que Incentiva sume información propia, esta sección puede ampliarse.";
+  el.appendChild(caveat);
+
+  const t1 = document.createElement('div');
+  t1.className = 'mg-section-title'; t1.textContent = 'Participación de mercado (con cifra)';
+  el.appendChild(t1);
+
+  marketShare.forEach(m=>{
+    const c = document.createElement('div'); c.className='mg-card';
+    c.innerHTML = `
+      <div class="mg-top"><div class="mg-rubro">${m.rubro}</div><div class="mg-valor">${m.valor}%</div></div>
+      <div class="mg-empresa">${m.grupo} · ${m.empresa}</div>
+      <div class="mg-bar-track"><div class="mg-bar-fill" style="width:${m.valor}%"></div></div>
+      <div class="mg-dato">${m.dato}</div>
+      <div class="mg-fuente">Fuente: ${m.fuente}</div>`;
+    el.appendChild(c);
+  });
+
+  const t2 = document.createElement('div');
+  t2.className = 'mg-section-title'; t2.textContent = 'Escala operativa reportada (sin % oficial)';
+  el.appendChild(t2);
+
+  marketScale.forEach(m=>{
+    const c = document.createElement('div'); c.className='mg-card';
+    c.innerHTML = `
+      <div class="mg-top"><div class="mg-rubro">${m.rubro}</div></div>
+      <div class="mg-empresa">${m.grupo} · ${m.empresa}</div>
+      <div class="mg-dato">${m.dato}</div>
+      <div class="mg-fuente">Fuente: ${m.fuente}</div>`;
+    el.appendChild(c);
+  });
+}
+
+/* =========================================================================
+   TAB PANORAMA — actores independientes (no pertenecen a los grupos
+   familiares ya mapeados). Completa el panorama competitivo por rubro.
+   Curado de Forbes Paraguay, DNIT, BVA, InfoNegocios, Cámara de Supermercados.
+   ========================================================================= */
+let independientes = [];
+
+/* =========================================================================
+   Normalización de zonas de mercado (se usa en Competencia Y en Zonal)
+   ========================================================================= */
+const zoneMap = {
+  "Combustibles":"Combustibles/Energía","Energía":"Combustibles/Energía","Forestal/Industria":"Combustibles/Energía",
+  "Financiero":"Financiero/Seguros","Fintech":"Financiero/Seguros","Seguros":"Financiero/Seguros",
+  "Retail":"Retail/Consumo","Retail/Inmobiliario":"Retail/Consumo","Retail internacional":"Retail/Consumo",
+  "Gastronomía":"Retail/Consumo","Alimentos":"Retail/Consumo","Industria/Alimentos":"Retail/Consumo","Bebidas":"Retail/Consumo",
+  "Medios":"Medios/Telecom","Medios digitales":"Medios/Telecom","Telecom":"Medios/Telecom","Entretenimiento digital":"Medios/Telecom",
+  "Salud":"Salud/Farma","Farma":"Salud/Farma","Farma/Retail":"Salud/Farma",
+  "Agroindustria":"Agroindustria","Agro":"Agroindustria",
+  "Automotor":"Automotor",
+  "Construcción":"Construcción/Industria","Cemento":"Construcción/Industria","Industria":"Construcción/Industria",
+  "Industria/Retail":"Construcción/Industria","Industria/Farma":"Construcción/Industria",
+  "Logística":"Logística", "Inmobiliario":"Inmobiliario", "Tabaco":"Otros", "Hotelería":"Otros",
+  "Loteadoras":"Inmobiliario",
+  "Inmobiliario — desarrolladoras (top y media)":"Inmobiliario",
+  "Inmobiliario — loteadoras (venta de terrenos en cuotas)":"Inmobiliario",
+  "Consumo masivo — alimentos envasados y golosinas":"Retail/Consumo",
+  "Consumo masivo — motos, bicicletas y equipamiento":"Retail/Consumo",
+  "Electrodomésticos y tecnología (retail a crédito)":"Retail/Consumo",
+  "Logística fluvial / hidrovía":"Logística",
+  "Consumo masivo — cuidado personal y del hogar":"Retail/Consumo",
+  "Café e infusiones":"Retail/Consumo","Chocolates, golosinas y snacks":"Retail/Consumo",
+  "Lácteos y postres":"Retail/Consumo","Helados":"Retail/Consumo","Alimento para mascotas":"Retail/Consumo",
+  "Servicios corporativos":"Otros","Alimentos y condimentos":"Retail/Consumo",
+  "Cuidado personal e higiene":"Retail/Consumo","Limpieza del hogar":"Retail/Consumo",
+  "Bebidas alcohólicas importadas":"Retail/Consumo",
+  "Automotor (concesionarios adicionales)":"Automotor",
+  "Combustibles — emblemas adicionales":"Combustibles/Energía",
+  "Construcción — grandes contratistas":"Construcción/Industria",
+  "Agroindustria — insumos, acopio y trading de granos":"Agroindustria",
+  "Farmacéutica — laboratorios e insumos médicos":"Salud/Farma"
+};
+function zoneOf(rubro){ return zoneMap[rubro] || "Otros"; }
+const zoneColors = {
+  "Combustibles/Energía":"#B08D2E","Financiero/Seguros":"#3E7C7C","Retail/Consumo":"#C4874A",
+  "Medios/Telecom":"#5B8FB0","Salud/Farma":"#9C7EBF","Agroindustria":"#7FA65A","Automotor":"#6B9E82",
+  "Construcción/Industria":"#A9714A","Logística":"#7C8FA6","Inmobiliario":"#C0524F","Otros":"#5B6B7C"
+};
+
+/* Lista unificada de TODAS las empresas: las de los grupos familiares
+   (con back-reference a su grupo) + los actores independientes. Es la
+   base tanto de Competencia (por rubro granular) como de Zonal (por zona). */
+function mutedZoneColor(zone){
+  const base = d3.color(zoneColors[zone] || '#5B6B7C');
+  return base ? base.darker(0.7).formatHex() : '#5B6B7C';
+}
+function buildAllLeaves(){
+  const leaves = [];
+  data.forEach(g=> g.empresas.forEach(e=> leaves.push({
+    name:e.nombre, rubro:e.rubro, zone:zoneOf(e.rubro), source:'grupo', grupo:g,
+    color:grupoColor(g.grupo), badge:e.badge
+  })));
+  independientes.forEach(sec=> sec.items.forEach(it=>{
+    const rubro = it.rubro || sec.rubro, zone = zoneOf(rubro);
+    leaves.push({
+      name:it.nombre, rubro, zone, source:'independiente', grupo:null,
+      color: mutedZoneColor(zone), nota:it.nota, badge:it.badge
+    });
+  }));
+  return leaves;
+}
+let allLeaves = [];
+
+/* =========================================================================
+   TAB 3 — Competencia por rubro (vista orbital) — POR EMPRESA INDIVIDUAL.
+   Cada nodo es UNA empresa (no un grupo entero). El grupo al que pertenece
+   se muestra como capa superior: color del nodo + etiqueta secundaria.
+   ========================================================================= */
+function buildCompetenciaIndex(){
+  const map = {};
+  allLeaves.forEach(leaf=>{
+    if(!map[leaf.rubro]) map[leaf.rubro] = [];
+    map[leaf.rubro].push(leaf);
+  });
+  return map;
+}
+let competenciaIndex = {};
+// Priorizamos rubros con más de una empresa (competencia real) primero
+let rubroKeys = [];
+
+const chipRowComp = document.getElementById('chipRowComp');
+let activeCompRubro;
+chipRowComp.addEventListener('click', e=>{
+  if(!e.target.classList.contains('chip')) return;
+  chipRowComp.querySelectorAll('.chip').forEach(c=>c.classList.remove('active'));
+  e.target.classList.add('active');
+  activeCompRubro = e.target.dataset.rubro;
+  renderCompetencia();
+});
+
+const svgComp = d3.select("#svg-comp");
+const stageCompEl = document.getElementById('stage-comp');
+
+function renderCompetencia(){
+  const width = stageCompEl.clientWidth, height = stageCompEl.clientHeight;
+  if(width < 4 || height < 4) return;
+
+  svgComp.attr("viewBox", [0,0,width,height]);
+  svgComp.selectAll("*").remove();
+
+  const entries = competenciaIndex[activeCompRubro] || [];
+  document.getElementById('counter').textContent =
+    entries.length + (entries.length===1 ? " empresa mapeada en " : " empresas compiten en ") + activeCompRubro;
+
+  const cx = width/2, cy = height/2;
+  const outerOrbit = Math.min(width,height)*0.36;
+  const innerOrbit = outerOrbit*0.6;
+  const g = svgComp.append("g");
+
+  g.append("circle").attr("class","orbit-ring").attr("cx",cx).attr("cy",cy).attr("r",outerOrbit);
+  g.append("circle").attr("class","orbit-ring").attr("cx",cx).attr("cy",cy).attr("r",innerOrbit);
+
+  const legend = svgComp.append("g").attr("transform",`translate(14,${height-38})`);
+  legend.append("circle").attr("r",5).attr("cx",5).attr("cy",0).attr("fill","#5B6B7C").attr("opacity",0.92);
+  legend.append("text").attr("x",15).attr("y",4).attr("class","orbit-hint").style("font-size","10px").style("text-anchor","start").text("Parte de un grupo familiar");
+  legend.append("circle").attr("r",5).attr("cx",5).attr("cy",18).attr("fill","#5B6B7C").attr("opacity",0.55).attr("stroke","#F0EDE4").attr("stroke-width",1).attr("stroke-dasharray","2 2");
+  legend.append("text").attr("x",15).attr("y",22).attr("class","orbit-hint").style("font-size","10px").style("text-anchor","start").text("Independiente / multinacional");
+
+  g.append("circle").attr("cx",cx).attr("cy",cy).attr("r",30).attr("fill","#122238").attr("stroke","#C4874A").attr("stroke-width",1.5);
+  g.append("text").attr("class","orbit-center-label").attr("x",cx).attr("y",cy+4).style("font-size","11px")
+    .text(activeCompRubro.length>16 ? activeCompRubro.slice(0,15)+"…" : activeCompRubro);
+
+  if(entries.length===0){
+    g.append("text").attr("class","orbit-hint").attr("x",cx).attr("y",cy+innerOrbit+24).text("Sin datos para este rubro");
+    return;
+  }
+  if(entries.length===1){
+    g.append("text").attr("class","orbit-hint").attr("x",cx).attr("y",height-16).text("Única empresa mapeada en este rubro hasta ahora");
+  }
+
+  // Con muchas empresas en un mismo rubro, un solo anillo satura las etiquetas
+  // (se solapan entre sí). A partir de 9 empresas se reparten en dos anillos.
+  const n = entries.length;
+  const useTwoRings = n > 8;
+  const outerEntries = useTwoRings ? entries.slice(0, Math.ceil(n/2)) : entries;
+  const innerEntries = useTwoRings ? entries.slice(Math.ceil(n/2)) : [];
+  const r = n > 14 ? 19 : n > 8 ? 22 : 24;
+  const labelSize = n > 14 ? 9 : 10.5;
+
+  function placeRing(ringEntries, orbit, angleOffset){
+    const m = ringEntries.length;
+    ringEntries.forEach((leaf,i)=>{
+      const angle = (i/m)*2*Math.PI - Math.PI/2 + angleOffset;
+      const x = cx + orbit*Math.cos(angle);
+      const y = cy + orbit*Math.sin(angle);
+      const labelAbove = i%2===0;
+
+      const node = g.append("g").attr("class","orbit-node").attr("transform",`translate(${x},${y})`)
+        .on("click", ()=>openLeafPanel(leaf));
+
+      node.append("title").text(leaf.name + ' · ' + (leaf.source==='grupo' ? leaf.grupo.grupo : 'Independiente'));
+      node.append("circle").attr("r", r).attr("fill", leaf.color).attr("opacity", leaf.source==='independiente' ? 0.55 : 0.92)
+        .attr("stroke", leaf.source==='independiente' ? "#F0EDE4" : "none")
+        .attr("stroke-width", leaf.source==='independiente' ? 1 : 0)
+        .attr("stroke-dasharray", leaf.source==='independiente' ? "2 2" : "none");
+      node.append("text").attr("class","orbit-label").attr("y", labelAbove ? -r-8 : r+13).style("font-size",labelSize+"px")
+        .text(leaf.name.length>22 ? leaf.name.slice(0,21)+"…" : leaf.name);
+      node.append("text").attr("class","orbit-sub").attr("y", 4).style("font-size","8.5px")
+        .text(leaf.source==='grupo' ? leaf.grupo.grupo.replace('Grupo ','') : 'Independiente');
+      if(leaf.badge){
+        node.append("text").attr("y", labelAbove ? r+13 : -r-8).attr("text-anchor","middle").style("font-size","10px")
+          .text(leaf.badge==='gptw' ? '💚' : '🏆');
+      }
+    });
+  }
+
+  placeRing(outerEntries, outerOrbit, 0);
+  if(innerEntries.length) placeRing(innerEntries, innerOrbit, Math.PI/innerEntries.length);
+}
+
+/* =========================================================================
+   TAB 0 — Resumen ejecutivo (dashboard)
+   ========================================================================= */
+function renderResumen(){
+  document.getElementById('counter').textContent = data.length + " grupos mapeados";
+  const el = document.getElementById('resumen-scroll');
+  el.innerHTML = "";
+
+  const totalEmpresas = data.reduce((a,g)=>a+g.empresas.length,0);
+  const conM_A = data.filter(g=> (g.notaRRHH||"").match(/compr|adquir|fusi|integr/i)).length;
+  const conAlerta = data.filter(g=> (g.notaRRHH||"").includes("⚠️")).length;
+
+  const grid = document.createElement('div');
+  grid.className = 'rs-stat-grid';
+  grid.innerHTML = `
+    <div class="rs-stat"><div class="rs-stat-value">${data.length}</div><div class="rs-stat-label">Grupos mapeados</div></div>
+    <div class="rs-stat"><div class="rs-stat-value">${totalEmpresas}</div><div class="rs-stat-label">Empresas identificadas</div></div>
+    <div class="rs-stat"><div class="rs-stat-value">${conM_A}</div><div class="rs-stat-label">Con M&A activo reciente</div></div>
+    <div class="rs-stat"><div class="rs-stat-value">${conAlerta}</div><div class="rs-stat-label">Con alerta de due diligence</div></div>`;
+  el.appendChild(grid);
+
+  // alertas RRHH destacadas (clic abre el panel del grupo)
+  const alertTitle = document.createElement('div');
+  alertTitle.className = 'mg-section-title'; alertTitle.textContent = 'Alertas para selección / due diligence';
+  el.appendChild(alertTitle);
+  data.filter(g=>(g.notaRRHH||"").includes("⚠️")).forEach(g=>{
+    const d = document.createElement('div'); d.className='rs-alert';
+    d.innerHTML = `<strong>${g.grupo}</strong> — ${g.notaRRHH}`;
+    d.addEventListener('click', ()=>openPanel(g));
+    el.appendChild(d);
+  });
+
+  // distribución por rubro principal (conteo de empresas por rubro de nivel grupo)
+  const secTitle = document.createElement('div');
+  secTitle.className = 'mg-section-title'; secTitle.textContent = 'Empresas por sector (nivel empresa)';
+  el.appendChild(secTitle);
+  const secCounts = {};
+  data.forEach(g=> g.empresas.forEach(e=>{ secCounts[e.rubro] = (secCounts[e.rubro]||0)+1; }));
+  const secArr = Object.entries(secCounts).sort((a,b)=>b[1]-a[1]).slice(0,10);
+  const maxCount = secArr.length ? secArr[0][1] : 1;
+  secArr.forEach(([sector,count])=>{
+    const row = document.createElement('div'); row.className='rs-sector-row';
+    row.innerHTML = `<div class="rs-sector-name">${sector}</div>
+      <div class="rs-sector-track"><div class="rs-sector-fill" style="width:${(count/maxCount*100)}%;background:${grupoColorList[0]}"></div></div>
+      <div class="rs-sector-count">${count}</div>`;
+    el.appendChild(row);
+  });
+
+  // ranking de grupos por cantidad de empresas mapeadas
+  const rankTitle = document.createElement('div');
+  rankTitle.className = 'mg-section-title'; rankTitle.textContent = 'Grupos por empresas mapeadas';
+  el.appendChild(rankTitle);
+  [...data].sort((a,b)=>b.empresas.length-a.empresas.length).forEach(g=>{
+    const row = document.createElement('div'); row.className='rs-sector-row clickable';
+    row.innerHTML = `<div class="rs-sector-name">${g.grupo.replace('Grupo ','')}</div>
+      <div class="rs-sector-track"><div class="rs-sector-fill" style="width:${(g.empresas.length/Math.max(...data.map(x=>x.empresas.length))*100)}%;background:${grupoColor(g.grupo)}"></div></div>
+      <div class="rs-sector-count">${g.empresas.length}</div>`;
+    row.addEventListener('click', ()=>openPanel(g));
+    el.appendChild(row);
+  });
+}
+
+/* =========================================================================
+   TAB 4 — Personas clave / liderazgo (directorio para selección)
+   ========================================================================= */
+function renderPersonas(){
+  document.getElementById('counter').textContent = "Liderazgo de " + data.length + " grupos";
+  const el = document.getElementById('personas-scroll');
+  el.innerHTML = "";
+  data.forEach(g=>{
+    const card = document.createElement('div'); card.className='pc-card';
+    card.innerHTML = `
+      <div class="pc-top"><span class="pc-dot" style="background:${grupoColor(g.grupo)}"></span><span class="pc-grupo">${g.grupo}</span></div>
+      <div class="pc-lideres">${g.liderazgo || 'N/D'}</div>
+      <div class="pc-meta">${g.rubro} · ${g.empresas.length} empresas · ${g.empleados || 'empleados N/D'}</div>`;
+    card.addEventListener('click', ()=>openPanel(g));
+    el.appendChild(card);
+  });
+}
+
+/* =========================================================================
+   EXPORTAR DATASET COMPLETO A JSON
+   ========================================================================= */
+document.getElementById('exportBtn').addEventListener('click', ()=>{
+  const payload = { generado: new Date().toISOString(), grupos: data, marketShare, marketScale };
+  const blob = new Blob([JSON.stringify(payload, null, 2)], {type:'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'mapa-grupos-paraguay.json';
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+});
+
+/* =========================================================================
+   TAB ZONAL — mapeo esférico/zonal: TODAS las empresas (de los grupos
+   familiares + los actores independientes) agrupadas por zona de mercado,
+   sin importar si son parte de un grupo, un conglomerado o una multinacional.
+   Reutiliza allLeaves y zoneColors ya definidos junto a Competencia.
+   ========================================================================= */
+let zonalLeaves = [];
+let zonalZones = ["todas"];
+
+const chipRowZonal = document.getElementById('chipRowZonal');
+let activeZone = "todas";
+chipRowZonal.addEventListener('click', e=>{
+  if(!e.target.classList.contains('chip')) return;
+  chipRowZonal.querySelectorAll('.chip').forEach(c=>c.classList.remove('active'));
+  e.target.classList.add('active');
+  activeZone = e.target.dataset.zone;
+  renderZonal();
+});
+
+const svgZonal = d3.select("#svg-zonal");
+const stageZonalEl = document.getElementById('stage-zonal');
+
+function renderZonal(){
+  const width = stageZonalEl.clientWidth, height = stageZonalEl.clientHeight;
+  if(width < 4 || height < 4) return;
+  svgZonal.attr("viewBox",[0,0,width,height]);
+  svgZonal.selectAll("*").remove();
+
+  const filtered = activeZone==="todas" ? zonalLeaves : zonalLeaves.filter(l=>l.zone===activeZone);
+  document.getElementById('counter').textContent = filtered.length + " empresas en el mapa zonal";
+
+  const zonesUsed = [...new Set(filtered.map(l=>l.zone))];
+  const root = d3.hierarchy({name:"root", children: zonesUsed.map(z=>({
+      name:z, children: filtered.filter(l=>l.zone===z)
+    }))})
+    .sum(d=> d.children ? 0 : 1)
+    .sort((a,b)=>b.value-a.value);
+
+  d3.treemap().size([width,height]).paddingOuter(3).paddingTop(activeZone==="todas"?22:4).paddingInner(2)(root);
+
+  const g = svgZonal.append("g");
+
+  // fondo + etiqueta de cada zona (solo si se ven varias zonas)
+  if(activeZone==="todas"){
+    g.selectAll("rect.zone-bg").data(root.children).join("rect")
+      .attr("x",d=>d.x0).attr("y",d=>d.y0).attr("width",d=>d.x1-d.x0).attr("height",d=>d.y1-d.y0)
+      .attr("fill", d=>zoneColors[d.data.name]||"#5B6B7C").attr("opacity",0.14);
+    g.selectAll("text.zone-label").data(root.children).join("text")
+      .attr("class","zn-zone-label").attr("x",d=>d.x0+6).attr("y",d=>d.y0+14)
+      .style("font-size","10.5px").text(d=> d.data.name + " (" + d.children.length + ")");
+  }
+
+  const leaf = g.selectAll("g.zn-leaf").data(root.leaves()).join("g")
+    .attr("class","zn-leaf").attr("transform",d=>`translate(${d.x0},${d.y0})`)
+    .style("cursor","pointer").on("click",(event,d)=>openLeafPanel(d.data));
+
+  leaf.append("title").text(d=> d.data.name + ' · ' + (d.data.source==='grupo' ? d.data.grupo.grupo : 'Independiente'));
+
+  leaf.append("rect").attr("class","zn-cell")
+    .attr("width",d=>Math.max(0,d.x1-d.x0)).attr("height",d=>Math.max(0,d.y1-d.y0))
+    .attr("fill",d=>d.data.color).attr("opacity",d=> d.data.source==='independiente' ? 0.55 : 0.9);
+
+  leaf.filter(d=> (d.x1-d.x0)>46 && (d.y1-d.y0)>20).append("text")
+    .attr("class","zn-label").attr("x",5).attr("y",14)
+    .style("font-size", d=> Math.min(11, Math.max(8,(d.x1-d.x0)/9))+"px")
+    .text(d=>{
+      const w = d.x1-d.x0, maxChars = Math.floor(w/6);
+      return d.data.name.length>maxChars ? d.data.name.slice(0,maxChars-1)+"…" : d.data.name;
+    });
+
+  leaf.filter(d=> (d.y1-d.y0)>34 && (d.x1-d.x0)>60).append("text")
+    .attr("class","zn-sub").attr("x",5).attr("y",27)
+    .style("font-size","8.5px")
+    .text(d=> d.data.source==='grupo' ? d.data.grupo.grupo.replace('Grupo ','') : 'Independiente');
+
+  leaf.filter(d=>d.data.badge && (d.x1-d.x0)>30 && (d.y1-d.y0)>20).append("text")
+    .attr("x",d=>d.x1-d.x0-14).attr("y",13).style("font-size","11px")
+    .text(d=> d.data.badge==='gptw' ? '💚' : '🏆');
+}
+
+function openLeafPanel(leaf){
+  document.getElementById('p-eyebrow').textContent = leaf.source==='grupo' ? 'Empresa · parte de un grupo' : 'Empresa independiente';
+  document.getElementById('p-nombre').textContent = leaf.name;
+  document.getElementById('p-rubro').textContent = leaf.rubro;
+  document.getElementById('p-rubro').style.borderColor = zoneColors[leaf.zone] || '#5B6B7C';
+
+  const statsEl = document.getElementById('p-stats');
+  const lideresWrap = document.getElementById('p-lideres-wrap');
+  const notaEl = document.getElementById('p-nota');
+  const empresasEl = document.getElementById('p-empresas');
+  empresasEl.innerHTML = "";
+
+  const badgeTxt = leaf.badge ? (leaf.badge==='gptw' ? '💚 Reconocida como Great Place to Work.' : '🏆 Reconocida en rankings de Top of Mind.') : '';
+
+  if(leaf.source==='grupo'){
+    const g = leaf.grupo;
+    statsEl.style.display = 'grid';
+    document.getElementById('p-empleados-label').textContent = 'Empleados (grupo)';
+    document.getElementById('p-facturacion-label').textContent = 'Facturación (grupo)';
+    document.getElementById('p-empleados').textContent = g.empleados || 'N/D';
+    document.getElementById('p-facturacion').textContent = g.facturacion || 'N/D';
+    lideresWrap.style.display = 'block';
+    document.getElementById('p-lideres-label').textContent = 'Liderazgo del grupo:';
+    document.getElementById('p-liderazgo').textContent = g.liderazgo || 'N/D';
+    notaEl.textContent = (g.notaRRHH || ('Empresa de ' + g.grupo + '.')) + (badgeTxt ? ' ' + badgeTxt : '');
+    notaEl.style.display = 'block';
+
+    const hermanas = g.empresas.filter(e=>e.nombre !== leaf.name);
+    const t1 = document.createElement('div'); t1.className='mg-section-title'; t1.style.marginTop='2px';
+    t1.textContent = hermanas.length ? ('Otras empresas de ' + g.grupo + ' (' + hermanas.length + ')') : (g.grupo + ' — sin otras empresas mapeadas');
+    empresasEl.appendChild(t1);
+    hermanas.forEach(e=>{
+      const div = document.createElement('div'); div.className='empresa';
+      div.innerHTML = `<div class="empresa-nombre">${e.nombre}${badgeHtml(e.badge)}</div><div class="empresa-rubro">${e.rubro}</div>`;
+      empresasEl.appendChild(div);
+    });
+  } else {
+    statsEl.style.display = 'none';
+    lideresWrap.style.display = 'block';
+    document.getElementById('p-lideres-label').textContent = '';
+    document.getElementById('p-liderazgo').textContent = 'Actor independiente del mercado — no pertenece a ninguno de los grupos familiares mapeados.';
+    notaEl.textContent = (leaf.nota || 'Sin nota adicional registrada todavía.') + (badgeTxt ? ' ' + badgeTxt : '');
+    notaEl.style.display = 'block';
+  }
+
+  // Quién más compite en el mismo rubro exacto — siempre visible, con o sin resultados
+  const competitors = allLeaves.filter(l=> l.rubro===leaf.rubro && l.name!==leaf.name);
+  const t2 = document.createElement('div'); t2.className='mg-section-title';
+  t2.textContent = competitors.length ? ('Compite con (' + competitors.length + ')') : 'Competencia en este rubro';
+  empresasEl.appendChild(t2);
+  if(competitors.length){
+    competitors.forEach(c=>{
+      const div = document.createElement('div'); div.className='empresa';
+      div.innerHTML = `<div class="empresa-nombre">${c.name}${badgeHtml(c.badge)}</div><div class="empresa-rubro">${c.source==='grupo'? c.grupo.grupo : 'Independiente'}</div>`;
+      empresasEl.appendChild(div);
+    });
+  } else {
+    const div = document.createElement('div'); div.className='empresa';
+    div.innerHTML = `<div class="empresa-rubro">No mapeamos todavía otra empresa en "${leaf.rubro}" — puede ser una categoría muy específica o un hueco de investigación pendiente.</div>`;
+    empresasEl.appendChild(div);
+  }
+
+  panel.classList.add('open'); overlay.classList.add('open');
+}
+
+function badgeHtml(badge){
+  if(badge==='gptw') return '<span class="badge badge-gptw">💚 GPTW</span>';
+  if(badge==='topofmind') return '<span class="badge badge-topofmind">🏆 Top of Mind</span>';
+  return '';
+}
+
+function renderPanorama(){
+  document.getElementById('counter').textContent = "Actores independientes del mercado";
+  const el = document.getElementById('panorama-scroll');
+  el.innerHTML = "";
+  const intro = document.createElement('div');
+  intro.className = 'mg-caveat';
+  intro.textContent = "Estas empresas NO pertenecen a los grupos familiares mapeados en las otras pestañas — se listan acá para completar el panorama competitivo de cada rubro. Lista no exhaustiva.";
+  el.appendChild(intro);
+  independientes.forEach(sec=>{
+    const t = document.createElement('div'); t.className='mg-section-title'; t.textContent = sec.rubro;
+    el.appendChild(t);
+    sec.items.forEach(it=>{
+      const c = document.createElement('div'); c.className='pn-card';
+      c.innerHTML = `<div class="pn-nombre">${it.nombre}${badgeHtml(it.badge)}</div><div class="pn-nota">${it.nota}</div>`;
+      el.appendChild(c);
+    });
+  });
+}
+
+/* =========================================================================
+   SIDE PANEL (compartido entre vistas)
+   ========================================================================= */
+const panel = document.getElementById('panel');
+const overlay = document.getElementById('overlay');
+function openPanel(d){
+  document.getElementById('p-eyebrow').textContent = 'Grupo económico';
+  document.getElementById('p-nombre').textContent = d.grupo;
+  document.getElementById('p-rubro').textContent = d.rubro;
+  document.getElementById('p-rubro').style.borderColor = colorFor(d.rubro);
+  document.getElementById('p-stats').style.display = 'grid';
+  document.getElementById('p-empleados-label').textContent = 'Empleados';
+  document.getElementById('p-facturacion-label').textContent = 'Facturación';
+  document.getElementById('p-empleados').textContent = d.empleados || "N/D";
+  document.getElementById('p-facturacion').textContent = d.facturacion || "N/D";
+  document.getElementById('p-lideres-wrap').style.display = 'block';
+  document.getElementById('p-lideres-label').textContent = 'Liderazgo:';
+  document.getElementById('p-liderazgo').textContent = d.liderazgo || "N/D";
+  const notaEl = document.getElementById('p-nota');
+  notaEl.textContent = d.notaRRHH || ('Grupo con ' + d.empresas.length + ' empresas mapeadas.');
+  notaEl.style.display = 'block';
+  const cont = document.getElementById('p-empresas');
+  cont.innerHTML = "";
+  const t = document.createElement('div'); t.className='mg-section-title'; t.style.marginTop='2px';
+  t.textContent = 'Empresas del grupo (' + d.empresas.length + ')';
+  cont.appendChild(t);
+  d.empresas.forEach(e=>{
+    const div = document.createElement('div'); div.className = "empresa";
+    div.innerHTML = `<div class="empresa-nombre">${e.nombre}${badgeHtml(e.badge)}</div><div class="empresa-rubro">${e.rubro}</div>`;
+    cont.appendChild(div);
+  });
+  panel.classList.add('open'); overlay.classList.add('open');
+}
+function closePanel(){ panel.classList.remove('open'); overlay.classList.remove('open'); }
+document.getElementById('closePanel').addEventListener('click', closePanel);
+overlay.addEventListener('click', closePanel);
+document.addEventListener('keydown', e=>{ if(e.key==='Escape' && panel.classList.contains('open')) closePanel(); });
+
+/* =========================================================================
+   INIT — carga todo desde Supabase y reconstruye las estructuras derivadas
+   que antes se computaban de forma sincrónica al leer los arrays hardcodeados.
+   ========================================================================= */
+async function boot(){
+  document.getElementById('counter').textContent = 'Cargando datos…';
+  try {
+    const [groupsRes, companiesRes, sectionsRes, itemsRes, shareRes, scaleRes] = await Promise.all([
+      supabase.from('market_groups').select('*').order('sort_order'),
+      supabase.from('market_companies').select('*').order('sort_order'),
+      supabase.from('market_independent_sections').select('*').order('sort_order'),
+      supabase.from('market_independent_items').select('*').order('sort_order'),
+      supabase.from('market_share').select('*').order('sort_order'),
+      supabase.from('market_scale').select('*').order('sort_order'),
+    ]);
+    for(const r of [groupsRes, companiesRes, sectionsRes, itemsRes, shareRes, scaleRes]){
+      if(r.error) throw r.error;
+    }
+
+    const companiesByGroup = {};
+    companiesRes.data.forEach(c=>{
+      (companiesByGroup[c.group_id] ||= []).push({ nombre:c.nombre, rubro:c.rubro, badge:c.badge });
+    });
+    data = groupsRes.data.map(g=>({
+      grupo: g.name, rubro: g.rubro, size: g.size,
+      empleados: g.empleados, facturacion: g.facturacion, liderazgo: g.liderazgo,
+      notaRRHH: g.nota_rrhh,
+      empresas: companiesByGroup[g.id] || []
+    }));
+
+    const itemsBySection = {};
+    itemsRes.data.forEach(it=>{
+      (itemsBySection[it.section_id] ||= []).push({ nombre:it.nombre, rubro:it.rubro, nota:it.nota, badge:it.badge });
+    });
+    independientes = sectionsRes.data.map(s=>({ rubro: s.rubro, items: itemsBySection[s.id] || [] }));
+
+    marketShare = shareRes.data.map(m=>({ rubro:m.rubro, grupo:m.grupo_label, empresa:m.empresa, valor:Number(m.valor), dato:m.dato, fuente:m.fuente }));
+    marketScale = scaleRes.data.map(m=>({ rubro:m.rubro, grupo:m.grupo_label, empresa:m.empresa, dato:m.dato, fuente:m.fuente }));
+
+    // --- reconstrucción de estructuras derivadas (antes se computaban al parsear el script) ---
+    grupoColor = d3.scaleOrdinal().domain(data.map(d=>d.grupo)).range(grupoColorList);
+
+    const rubros = ["todos", ...new Set(data.map(d=>d.rubro))];
+    rubros.forEach(r=>{
+      const b = document.createElement('button');
+      b.className = 'chip' + (r==="todos" ? " active" : "");
+      b.dataset.rubro = r;
+      b.textContent = r === "todos" ? "Todos" : r;
+      chipRow.appendChild(b);
+    });
+
+    allLeaves = buildAllLeaves();
+    competenciaIndex = buildCompetenciaIndex();
+    rubroKeys = Object.keys(competenciaIndex).sort((a,b)=> competenciaIndex[b].length - competenciaIndex[a].length);
+    rubroKeys.forEach((k,i)=>{
+      const b = document.createElement('button');
+      b.className = 'chip' + (i===0 ? " active" : "");
+      b.dataset.rubro = k;
+      b.textContent = k + " (" + competenciaIndex[k].length + ")";
+      chipRowComp.appendChild(b);
+    });
+    activeCompRubro = rubroKeys[0];
+
+    zonalLeaves = allLeaves;
+    zonalZones = ["todas", ...new Set(zonalLeaves.map(l=>l.zone))];
+    zonalZones.forEach(z=>{
+      const b = document.createElement('button');
+      b.className = 'chip' + (z==="todas" ? " active" : "");
+      b.dataset.zone = z;
+      b.textContent = z==="todas" ? "Todas las zonas" : z;
+      chipRowZonal.appendChild(b);
+    });
+
+    new ResizeObserver(()=>{ if(activeTab==='grupos') renderGrupos(); }).observe(stageEl);
+    new ResizeObserver(()=>{ if(activeTab==='competencia') renderCompetencia(); }).observe(stageCompEl);
+    new ResizeObserver(()=>{ if(activeTab==='zonal') renderZonal(); }).observe(stageZonalEl);
+
+    renderResumen();
+  } catch(err){
+    console.error('Error cargando datos desde Supabase:', err);
+    document.getElementById('counter').textContent = 'Error al cargar datos';
+    document.getElementById('resumen-scroll').innerHTML =
+      '<div class="mg-caveat">⚠️ No se pudieron cargar los datos desde Supabase. Revisá la conexión a internet y que SUPABASE_ANON_KEY esté configurada correctamente en el HTML. Detalle: '
+      + (err && err.message ? err.message : String(err)) + '</div>';
+  }
+}
+boot();
+</script>
+</body>
+</html>
