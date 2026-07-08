@@ -324,12 +324,19 @@ const svgGrupos = d3.select("#svg-grupos");
 const stageEl = document.getElementById('stage');
 let simulation;
 
+const gGruposZoom = svgGrupos.append("g");
+const zoomGrupos = d3.zoom().scaleExtent([0.5, 4]).on("zoom", (event)=>{
+  gGruposZoom.attr("transform", event.transform);
+});
+svgGrupos.call(zoomGrupos).on("dblclick.zoom", null);
+
 function renderGrupos(){
   const width = stageEl.clientWidth, height = stageEl.clientHeight;
   if(width < 4 || height < 4) return;
 
   svgGrupos.attr("viewBox", [0,0,width,height]);
-  svgGrupos.selectAll("*").remove();
+  gGruposZoom.selectAll("*").remove();
+  svgGrupos.call(zoomGrupos.transform, d3.zoomIdentity);
 
   let filtered = data.filter(d=> activeRubro==="todos" || d.rubro===activeRubro);
   if(searchTerm){
@@ -343,7 +350,7 @@ function renderGrupos(){
 
   if(filtered.length===0){
     if(simulation) simulation.stop();
-    svgGrupos.append("text").attr("class","orbit-hint")
+    gGruposZoom.append("text").attr("class","orbit-hint")
       .attr("x", width/2).attr("y", height/2).attr("text-anchor","middle")
       .text("Sin resultados para \"" + searchTerm + "\" en este rubro");
     return;
@@ -351,7 +358,7 @@ function renderGrupos(){
 
   const rScale = d3.scaleSqrt().domain([0, d3.max(data,d=>d.size)]).range([10, Math.min(width,height)*0.17]);
   const nodes = filtered.map(d=>({...d, r: rScale(d.size)}));
-  const g = svgGrupos.append("g");
+  const g = gGruposZoom;
 
   const node = g.selectAll("g.node").data(nodes).join("g")
     .attr("class","node").style("cursor","pointer")
